@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <title>মাদ্রাসা রেজাল্ট শিট - ফাইনাল ফিক্স</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        body { font-family: 'Tahoma', 'Arial', sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        
+        .container { 
+            background: #fff; 
+            width: 10.5in; 
+            height: 7.8in; 
+            margin: 10px auto; 
+            padding: 0.3in;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .header-area { text-align: center; margin-bottom: 10px; }
+        .m-name-input { font-size: 24px; font-weight: bold; width: 100%; border: none; text-align: center; outline: none; background: transparent; }
+        .m-address-input { font-size: 14px; width: 100%; border: none; text-align: center; outline: none; color: #555; background: transparent; }
+        .exam-title-input { font-size: 16px; width: 100%; border: none; text-align: center; outline: none; font-weight: bold; margin-top: 5px; background: transparent; }
+
+        table { width: 100%; border-collapse: collapse; border: 1.5px solid #000; table-layout: fixed; }
+        th, td { border: 1px solid #000; text-align: center; padding: 2px; font-size: 13px; height: 32px; box-sizing: border-box; }
+        
+        /* ৩৫ এর নিচে লাল */
+        .fail-cell { 
+            background-color: #ffcccc !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+        }
+
+        .name-col { width: 180px; text-align: left; }
+        .name-col input { text-align: left; padding-left: 5px; font-size: 13px; border:none; width: 95%; outline: none; background: transparent; }
+        .sub-head { background: #f2f2f2; width: 60px; }
+        .sub-textarea { width: 100%; resize: none; font-size: 11px; border:none; text-align: center; outline: none; background: transparent; height: 25px; overflow: hidden; vertical-align: middle; }
+        .mark-input { font-size: 15px; width: 100%; border:none; text-align: center; outline: none; background: transparent; display: block; height: 100%; }
+        .result-col { width: 50px; font-weight: bold; background: #eee; -webkit-print-color-adjust: exact; }
+
+        .footer-area { 
+            position: absolute; 
+            bottom: 0.5in; 
+            left: 0.3in; 
+            right: 0.3in; 
+            display: flex; 
+            justify-content: space-between; 
+        }
+        .sig-box { text-align: center; width: 220px; }
+        .sig-input { border: none; border-top: 1.5px solid #000 !important; width: 100%; font-size: 14px; text-align: center; outline: none; background: transparent; padding-top: 5px; font-weight: bold; }
+
+        .no-print { text-align: center; padding: 15px; background: #fff; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #ddd; }
+        button { padding: 8px 15px; cursor: pointer; border: none; border-radius: 5px; color: white; margin: 0 5px; font-weight: bold; }
+        .btn-add { background: #27ae60; }
+        .btn-sub { background: #f39c12; }
+        .btn-print { background: #2980b9; }
+        .btn-pdf { background: #c0392b; }
+        
+        @media print {
+            @page { size: landscape; margin: 0; }
+            .no-print { display: none !important; }
+            .container { box-shadow: none; margin: 0; width: 100%; height: 100vh; padding: 0.4in; zoom: 100%; }
+            input::placeholder, textarea::placeholder { color: transparent !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print">
+    <button class="btn-add" onclick="addStudent()">➕ ছাত্র যোগ</button>
+    <button class="btn-sub" onclick="addSubject()">➕ বিষয় যোগ</button>
+    <button class="btn-print" onclick="window.print()">🖨️ প্রিন্ট করুন</button>
+    <button class="btn-pdf" onclick="downloadPDF()">📄 PDF ডাউনলোড</button>
+</div>
+
+<div id="report-content" class="container">
+    <div class="header-area">
+        <input type="text" class="m-name-input" placeholder="মাদ্রাসার নাম লিখুন">
+        <input type="text" class="m-address-input" placeholder="ঠিকানা লিখুন">
+        <input type="text" class="exam-title-input" placeholder="পরীক্ষার নাম ও সাল লিখুন">
+    </div>
+
+    <table id="resultTable">
+        <thead>
+            <tr id="headerRow">
+                <th style="width:35px;">ক্র:</th>
+                <th class="name-col">ছাত্রের নাম</th>
+                <th class="result-col">মোট</th>
+                <th class="result-col">গড়</th>
+                <th class="result-col">মেধা</th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="footer-area">
+        <div class="sig-box"><input type="text" class="sig-input" value="শ্রেণী শিক্ষকের স্বাক্ষর"></div>
+        <div class="sig-box"><input type="text" class="sig-input" value="মুহতামিমের স্বাক্ষর"></div>
+    </div>
+</div>
+
+<script>
+const bnNums = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+const enNums = {'০':0,'১':1,'২':2,'৩':3,'৪':4,'৫':5,'৬':6,'৭':7,'৮':8,'৯':9};
+
+function toBn(n) { return n === null ? "—" : n.toString().replace(/\d/g, d => bnNums[d]); }
+function toEn(s) {
+    let res = "";
+    for(let char of s.toString()){ res += (enNums[char] !== undefined) ? enNums[char] : char; }
+    return isNaN(parseFloat(res)) ? 0 : parseFloat(res);
+}
+
+function addStudent() {
+    const tbody = document.getElementById("tbody");
+    const subCount = document.querySelectorAll("#headerRow .sub-head").length;
+    let tr = document.createElement("tr");
+    let html = `<td>${toBn(tbody.rows.length + 1)}</td><td class="name-col"><input type="text" placeholder="নাম"></td>`;
+    for (let i = 0; i < subCount; i++) { html += `<td><input type="text" class="mark-input" oninput="calculate()"></td>`; }
+    html += `<td class="total result-col">০</td><td class="avg result-col">০.০</td><td class="merit result-col">—</td>`;
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+}
+
+function addSubject() {
+    const headerRow = document.getElementById("headerRow");
+    let th = document.createElement("th");
+    th.className = "sub-head";
+    th.innerHTML = `<textarea class="sub-textarea" placeholder="বিষয়"></textarea>`;
+    headerRow.insertBefore(th, headerRow.children[headerRow.children.length - 3]);
+    document.querySelectorAll("#tbody tr").forEach(tr => {
+        let td = document.createElement("td");
+        td.innerHTML = `<input type="text" class="mark-input" oninput="calculate()">`;
+        tr.insertBefore(td, tr.children[tr.children.length - 3]);
+    });
+}
+
+function calculate() {
+    const rows = Array.from(document.querySelectorAll("#tbody tr"));
+    let scoreList = [];
+    
+    rows.forEach((tr, index) => {
+        let inputs = tr.querySelectorAll(".mark-input");
+        let sum = 0, count = 0;
+        
+        inputs.forEach(i => {
+            if(i.value.trim() !== "") {
+                let val = toEn(i.value);
+                sum += val;
+                count++;
+                i.parentElement.style.backgroundColor = (val < 35) ? "#ffcccc" : "transparent";
+            } else {
+                i.parentElement.style.backgroundColor = "transparent";
+            }
+        });
+
+        tr.querySelector(".total").innerText = toBn(sum);
+        tr.querySelector(".avg").innerText = toBn(count > 0 ? (sum / count).toFixed(1) : "০.০");
+        scoreList.push({ index, sum });
+    });
+
+    let sortedList = [...scoreList].sort((a, b) => b.sum - a.sum);
+    
+    scoreList.forEach((item) => {
+        let meritCell = rows[item.index].querySelector(".merit");
+        
+        if(item.sum > 0) {
+            let rank = sortedList.findIndex(x => x.sum === item.sum) + 1;
+            meritCell.innerText = toBn(rank);
+            
+            // মেধা ১,২,৩ হলে নীল ঘর
+            if(rank <= 3) {
+                meritCell.style.backgroundColor = "#3498db"; // নীল
+                meritCell.style.color = "#ffffff";
+            } else {
+                meritCell.style.backgroundColor = "#eeeeee";
+                meritCell.style.color = "#000000";
+            }
+        } else {
+            meritCell.innerText = "—";
+            meritCell.style.backgroundColor = "#eeeeee";
+            meritCell.style.color = "#000000";
+        }
+    });
+}
+
+function downloadPDF() {
+    const element = document.getElementById('report-content');
+    html2pdf().from(element).set({
+        margin: 0,
+        filename: 'Madrasa_Result.pdf',
+        html2canvas: { scale: 3, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+    }).save();
+}
+
+addSubject();
+addStudent();
+</script>
+</body>
+</html>
